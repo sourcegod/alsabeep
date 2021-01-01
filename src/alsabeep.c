@@ -23,7 +23,11 @@ snd_pcm_sframes_t g_frames;
 int channels =1;
 snd_pcm_format_t format = SND_PCM_FORMAT_FLOAT;
 int rate = 48000;
+// notes array
+#define NOTES_LEN 1024
+int g_arrNotes[NOTES_LEN]; // globals arrays are initialized with zeros by default  
 
+//-----------------------------------------
 
 #define HELP_TEXT "AlsaBeep Usage:\n\
   freq dur : without options, play at frequency freq, in duration dur in seconds.\n\
@@ -36,6 +40,15 @@ int rate = 48000;
   -s start : set start frequency or note for sequence (default: 0)\n\
   -S stop : set stop frequency or note for sequence (default: 1)\n\
   -t step : set step frequency or note for sequence (default: 1)\n\n"
+//-----------------------------------------
+
+void initArrNotes(int stLen) {
+  // initialize notes array with stLen of zeros
+    for (int i=0; i < stLen; i++) {
+        g_arrNotes[i] =0;
+    }
+    
+}
 //-----------------------------------------
 
 float* genTone(float freq) {
@@ -166,6 +179,61 @@ void playSeqNote(int numNote, float dur, int start, int stop, int step) {
 }
 //-----------------------------------------
 
+int stringToIntArray(char* strg) {
+    // convert string to int array 
+    int j=-1;
+    int stLen = strlen(strg);
+    if (stLen > NOTES_LEN) stLen = NOTES_LEN;
+    if (stLen > 0) {
+      j =0;
+        // initArrNotes(stLen);
+        g_arrNotes[j] =0;
+    } else { // string is empty
+        return 0;
+    }
+
+    for (int i=0; strg[i] != '\0'; i++) {
+        if (strg[i] == ',') {
+            continue;
+        } else if (strg[i] == ' ') {
+            j++;
+            // init array notes field, whether array is not initialized
+            if (j < NOTES_LEN) g_arrNotes[j] =0;
+        
+        } else if (strg[i] == '-') {
+            g_arrNotes[j] = -1;
+        
+        } else if (strg[i] >=48 && strg[i] <=57) { // for numbers in ascii code
+            if ( g_arrNotes[j] == -1) { 
+                g_arrNotes[j] = g_arrNotes[j] * (strg[i] - 48);
+            } else { // not -1
+                if ( g_arrNotes[j] < 0) // negative numbers
+                    g_arrNotes[j] = g_arrNotes[j] * 10 - (strg[i] - 48);
+                else // positive numbers
+                    g_arrNotes[j] = g_arrNotes[j] * 10 + (strg[i] - 48);
+            }
+        }
+
+    }
+
+
+    return j+1;
+}
+//-----------------------------------------
+
+
+void playNoteList(char* strg, float dur) {
+    // playing notes from string
+    int noteCount = stringToIntArray(strg);
+    for (int i=0; i < noteCount; i++) {
+        printf("%d: ", g_arrNotes[i]);
+        playNote(g_arrNotes[i], dur);
+    }
+    
+}
+//-----------------------------------------
+
+
 
 int main(int argc, char *argv[]) {
     int err;
@@ -173,13 +241,14 @@ int main(int argc, char *argv[]) {
     float freq = DEF_FREQ; // in hertz
     float dur = DEF_DUR; // in seconds
     int note = DEF_NOTE;
+    char* noteString = NULL;
     int start =0;
     int stop =1;
     float step =1;
     int mode =0;
     int optIndex =0;
 
-    while (( optIndex = getopt(argc, argv, "d:f:F:hn:N:s:S:t:")) != -1) {
+    while (( optIndex = getopt(argc, argv, "d:f:F:hn:N:o:s:S:t:")) != -1) {
         switch (optIndex) {
             case 'd':
                 dur = atof(optarg); break;
@@ -198,7 +267,10 @@ int main(int argc, char *argv[]) {
             case 'N':
                 mode =4;
                 note = strtol(optarg, NULL, 10); break;
-            case 's':
+            case 'o':
+                mode =5;
+                noteString = optarg;
+        case 's':
                 start = strtol(optarg, NULL, 10); break;
             case 'S':
                 stop = strtol(optarg, NULL, 10); break;
@@ -259,8 +331,17 @@ int main(int argc, char *argv[]) {
     } else if (mode == 4) {
         printf("Playing sequence Note at note: %d, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", note, dur, start, stop, step);
         playSeqNote(note, dur, start, stop, step);
+    } else if (mode == 5) {
+        // TODO: make a better string checking
+        if (noteString == NULL || noteString[0] == '\0' 
+            || noteString[0] == ' ' || noteString[0] == ',') {
+            fprintf(stderr, "AlsaBeep: Invalid notes list.\n");
+            return EXIT_FAILURE;
+        }
+        printf("Playing Note list: %s, during %.3f secs.\n", noteString, dur);
+        playNoteList(noteString, dur);
     } 
-     
+      
     printf("nbFrames played: %d\n", g_frames);
 
 
