@@ -25,7 +25,23 @@ snd_pcm_format_t format = SND_PCM_FORMAT_FLOAT;
 int rate = 48000;
 // notes array
 #define NOTES_LEN 1024
+#define PAT_LEN 1024
 int g_arrNotes[NOTES_LEN]; // globals arrays are initialized with zeros by default  
+// macro for structure
+// #define NEW_BEEP {440.0f, 1.0f, 48, 0, 1, 1}
+struct TPattern {
+    unsigned int mode;
+    float freq;
+    float dur;
+    unsigned int note;
+    int start;
+    int stop;
+    float step;
+    char* noteString;
+};
+
+// struct TBeep Beep1 = NEW_BEEP;
+struct TPattern g_arrPattern[PAT_LEN];
 
 //-----------------------------------------
 
@@ -49,6 +65,22 @@ void initArrNotes(int stLen) {
     }
     
 }
+//-----------------------------------------
+
+void initPatterns() {
+    struct TPattern* ptrPat;
+    for (int i=0; i < PAT_LEN; i++) {
+        ptrPat = &g_arrPattern[i];
+        ptrPat->mode =0;
+        ptrPat->freq = 440.0f;
+        ptrPat->dur = 1.0f;
+        ptrPat->note = 48;
+        ptrPat->start = 0;
+        ptrPat->stop = 1;
+        ptrPat->step = 1.0f;
+        ptrPat->noteString = "48";
+    }
+  }
 //-----------------------------------------
 
 float* genTone(float freq) {
@@ -156,12 +188,12 @@ void playSeq(float freq, float dur, int start, int stop, float step) {
 }
 //-----------------------------------------
 
-void playNote(int numNote, float dur) {
+void playNote(int noteNum, float dur) {
     // playing note number
     float refNote = 27.5; // note reference A0
     // test whether note between 0 and note_max
-    numNote = (numNote < 0) ? DEF_NOTE : (numNote > MAX_NOTE) ? MAX_NOTE : numNote;
-    float freq = refNote*pow(2, numNote*1/12.0);
+    noteNum = (noteNum < 0) ? DEF_NOTE : (noteNum > MAX_NOTE) ? MAX_NOTE : noteNum;
+    float freq = refNote*pow(2, noteNum*1/12.0);
     playFreq(freq, dur);	
     printf("Freq: %.3f\n", freq);
 
@@ -169,11 +201,11 @@ void playNote(int numNote, float dur) {
 }
 //-----------------------------------------
 
-void playSeqNote(int numNote, float dur, int start, int stop, int step) {
+void playSeqNote(int noteNum, float dur, int start, int stop, int step) {
     // playing sequence notes
     for (int i=start; i<stop; i += step) {
-        playNote(numNote, dur);	
-        numNote += step;
+        playNote(noteNum, dur);	
+        noteNum += step;
     }
 
 }
@@ -233,11 +265,55 @@ void playNoteList(char* strg, float dur) {
 }
 //-----------------------------------------
 
+int runPatterns(unsigned int count) {
+    // run all paterns
+    struct TPattern* ptrPat = NULL;
+    char* noteString = NULL;
 
+    for (int i=0; i < count; i++) {
+        ptrPat = &g_arrPattern[i];
+        if (ptrPat->mode == 0) { // play frequency
+            printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", ptrPat->freq, ptrPat->dur);
+            // playFreq(freq, dur);
+            playFreq(ptrPat->freq, ptrPat->dur);
+        
+        } else if (ptrPat->mode == 1) { // -f: play frequency
+            printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", ptrPat->freq, ptrPat->dur);
+            playFreq(ptrPat->freq, ptrPat->dur);
+
+        } else if (ptrPat->mode == 2) { // -F: play sequence freq
+            printf("Playing SeqFreq, Sine tone at %.3fHz, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", ptrPat->freq, ptrPat->dur, ptrPat->start, ptrPat->stop, ptrPat->step);
+            playSeq(ptrPat->freq, ptrPat->dur, ptrPat->start, ptrPat->stop, ptrPat->step);
+
+        } else if (ptrPat->mode == 3) { // -n: play note
+            printf("Playing Note at %d, during %.3f secs.\n", ptrPat->note, ptrPat->dur);
+            playNote(ptrPat->note, ptrPat->dur);
+
+        } else if (ptrPat->mode == 4) { // -N: play sequence note
+            printf("Playing sequence Note at note: %d, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", ptrPat->note, ptrPat->dur, 
+                ptrPat->start, ptrPat->stop, ptrPat->step);
+            playSeqNote(ptrPat->note, ptrPat->dur, 
+                ptrPat->start, ptrPat->stop, ptrPat->step);
+
+        } else if (ptrPat->mode == 5) { // -o: play note list
+            // TODO: make a better string checking
+            noteString = ptrPat->noteString;
+            if (noteString == NULL || noteString[0] == '\0' 
+                || noteString[0] == ' ' || noteString[0] == ',') {
+                fprintf(stderr, "AlsaBeep: Invalid notes list.\n");
+                return EXIT_FAILURE;
+            }
+            printf("Playing Note list: %s, during %.3f secs.\n", ptrPat->noteString, ptrPat->dur);
+            playNoteList(ptrPat->noteString, ptrPat->dur);
+        }
+    }
+
+
+}
+//-----------------------------------------
 
 int main(int argc, char *argv[]) {
     int err;
-   
     float freq = DEF_FREQ; // in hertz
     float dur = DEF_DUR; // in seconds
     int note = DEF_NOTE;
@@ -247,41 +323,69 @@ int main(int argc, char *argv[]) {
     float step =1;
     int mode =0;
     int optIndex =0;
+    int patIndex =-1;
 
-    while (( optIndex = getopt(argc, argv, "d:f:F:hn:N:o:s:S:t:")) != -1) {
+    struct TPattern* ptrPat = NULL; 
+    ptrPat = g_arrPattern;
+    initPatterns();
+   
+    while (( optIndex = getopt(argc, argv, "d:f:F:hn:N:o:s:S:t:")) != -1 && (patIndex < PAT_LEN)) {
+        // printf("patIndex: %d\n", patIndex);
+        if (patIndex >=0) ptrPat = &g_arrPattern[patIndex]; 
         switch (optIndex) {
             case 'd':
-                dur = atof(optarg); break;
+                dur = atof(optarg); 
+                ptrPat->dur = dur; break;
             case 'f':
+                // patIndex++;
+                // increment index, then returns it
+                ptrPat = &g_arrPattern[++patIndex]; 
                 mode =1;
-                freq = atof(optarg); break;
+                ptrPat->mode = mode;
+                freq = atof(optarg);
+                ptrPat->freq = freq; break;
             case 'F':
+                ptrPat = &g_arrPattern[++patIndex]; 
                 mode =2;
+                ptrPat->mode = mode;
                 freq = atof(optarg); break;
             case 'h':
                 printf(HELP_TEXT);
                 return 0;
             case 'n':
+                ptrPat = &g_arrPattern[++patIndex]; 
                 mode =3;
-                note = strtol(optarg, NULL, 10); break;
+                ptrPat->mode = mode;
+                note = strtol(optarg, NULL, 10); 
+                ptrPat->note = note; 
+                break;
             case 'N':
+                ptrPat = &g_arrPattern[++patIndex]; 
                 mode =4;
+                ptrPat->mode = mode;
                 note = strtol(optarg, NULL, 10); break;
             case 'o':
+                ptrPat = &g_arrPattern[++patIndex]; 
                 mode =5;
+                ptrPat->mode = mode;
                 noteString = optarg;
+                ptrPat->noteString = noteString;
+                break;
         case 's':
-                start = strtol(optarg, NULL, 10); break;
+                start = strtol(optarg, NULL, 10); 
+                ptrPat->start = start; break;
             case 'S':
-                stop = strtol(optarg, NULL, 10); break;
+                stop = strtol(optarg, NULL, 10); 
+                ptrPat->stop = stop; break;
             case 't':
-                step = atof(optarg); break;
+                step = atof(optarg); 
+                ptrPat->step = step; break;
 
             default:
                 printf("Option incorrect\n");
                 return 1;
-          }
-      
+        }
+          
     }
     
     // SINE WAVE
@@ -291,59 +395,46 @@ int main(int argc, char *argv[]) {
     
     // playing mode
     // without options
-    if (mode == 0) {
+    if (patIndex == -1) {
+    // if (mode == 0) {
         freq = (argc > 1) ? atof(argv[1]) : DEF_FREQ;
         if (freq == 0) {
             fprintf(stderr, "AlsaBeep: Invalid frequency.\n");
             return EXIT_FAILURE;
         }
+        // ptrPat->freq = freq;
 
         dur = (argc > 2) ? atof(argv[2]) : DEF_DUR;
         if (dur == 0) {
             fprintf(stderr, "AlsaBeep: Invalid duration.\n");
             return EXIT_FAILURE;
         }
+        // ptrPat->dur = dur;
         
         start = (argc > 3) ? strtol(argv[3], NULL, 10) : -1;
+        // ptrPat->start = start;
         stop = (argc > 4) ? strtol(argv[4], NULL, 10) : 0;
+        // ptrPat->stop = stop;
         step = (argc > 5) ? atof(argv[5]) : 1;
+        // ptrPat->step = step;
+        
 
         // Playing freq
         if (start == -1) {
             printf("Playing freq, Sine tone at %.3fHz during %.3f secs.\n", freq, dur);
             playFreq(freq, dur);
+            // playFreq(ptrPat->freq, ptrPat->dur);
         // Playing sequence freq
         } else {
             printf("Playing SeqFreq, Sine tone at %.3fHz, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", freq, dur, start, stop, step);
             playSeq(freq, dur, start, stop, step);
         }
 
-    } else if (mode == 1) {
-        printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", freq, dur);
-        playFreq(freq, dur);
-    } else if (mode == 2) {
-        printf("Playing SeqFreq, Sine tone at %.3fHz, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", freq, dur, start, stop, step);
-        playSeq(freq, dur, start, stop, step);
-
-    } else if (mode == 3) {
-        printf("Playing Note at %d, during %.3f secs.\n", note, dur);
-        playNote(note, dur);
-    } else if (mode == 4) {
-        printf("Playing sequence Note at note: %d, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", note, dur, start, stop, step);
-        playSeqNote(note, dur, start, stop, step);
-    } else if (mode == 5) {
-        // TODO: make a better string checking
-        if (noteString == NULL || noteString[0] == '\0' 
-            || noteString[0] == ' ' || noteString[0] == ',') {
-            fprintf(stderr, "AlsaBeep: Invalid notes list.\n");
-            return EXIT_FAILURE;
-        }
-        printf("Playing Note list: %s, during %.3f secs.\n", noteString, dur);
-        playNoteList(noteString, dur);
-    } 
+    } else {
+        runPatterns(patIndex+1);
+    }
       
     printf("nbFrames played: %d\n", g_frames);
-
 
     closeDevice();
 
