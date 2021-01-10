@@ -26,6 +26,7 @@ int rate = 48000;
 // notes array
 #define NOTES_LEN 1024
 #define PAT_LEN 1024
+#define STRING_LEN 8192
 int g_arrNotes[NOTES_LEN]; // globals arrays are initialized with zeros by default  
 // macro for structure
 // #define NEW_BEEP {440.0f, 1.0f, 48, 0, 1, 1}
@@ -40,8 +41,15 @@ struct TPattern {
     char* noteString;
 };
 
+struct TNoteDur {
+    unsigned int note;
+    float dur;
+};
+
+
 // struct TBeep Beep1 = NEW_BEEP;
 struct TPattern g_arrPattern[PAT_LEN];
+struct TNoteDur g_arrNoteDur[PAT_LEN];
 
 //-----------------------------------------
 
@@ -214,6 +222,7 @@ void playSeqNote(int noteNum, float dur, int start, int stop, int step) {
 //-----------------------------------------
 
 int stringToIntArray(char* strg) {
+    // deprecated function
     // convert string to int array 
     int j=-1;
     int stLen = strlen(strg);
@@ -256,13 +265,70 @@ int stringToIntArray(char* strg) {
 //-----------------------------------------
 
 
+int stringToNotes(char* input) {
+    // separate input string by tokens
+    char* copyInput = strdup(input);
+    const char* sep=":, ";
+    char* token = NULL;
+    int noteIndex =0;
+    struct TNoteDur* ptrNote = NULL;
+    int note =48;
+    float dur =1.0f;
+
+    // Init notes duration array
+    for (int i=0; i<NOTES_LEN; i++) {
+        ptrNote = &g_arrNoteDur[i];
+        ptrNote->note = 48;
+        ptrNote->dur =1;
+    }
+    // init the token
+    token = strtok(input, sep);
+    // printf("Input: %s\n", input);
+    // printf("copyInput: %s\n", copyInput);
+    // printf("Tokens\n");
+    
+    while ((token != NULL) && (noteIndex < PAT_LEN)) {
+      ptrNote = &g_arrNoteDur[noteIndex]; 
+      // char ch = copyInput[token - input];
+      char delim = copyInput[token - input + strlen(token)];
+      // printf("First char: %c, delim: %c\n", ch, delim);
+      // printf("Token: %s\n", token);
+      if ((delim == ',') || (delim == '\0')) {
+          ptrNote->note = atoi(token);
+          ptrNote->dur = dur;
+      } else if (delim == ':') {
+          note = ptrNote->note = atoi(token);
+          token = strtok(NULL, sep);
+          dur = ptrNote->dur = atof(token);
+      }
+      token = strtok(NULL, sep);
+      noteIndex++;
+    
+    }
+    free(copyInput);
+
+    return noteIndex;
+}
+//----------------------------------------------------------
+
 void playNoteList(char* strg, float dur) {
     // playing notes from string
+    struct TNoteDur* ptrNote = NULL;
+    int noteCount = stringToNotes(strg);
+    for (int i=0; i < noteCount; i++) {
+      ptrNote = &g_arrNoteDur[i];
+        printf("Note %d:%.2f, ", ptrNote->note, ptrNote->dur);
+        playNote(ptrNote->note, ptrNote->dur);
+    }
+
+    /*
     int noteCount = stringToIntArray(strg);
     for (int i=0; i < noteCount; i++) {
         printf("%d: ", g_arrNotes[i]);
         playNote(g_arrNotes[i], dur);
     }
+    */
+
     
 }
 //-----------------------------------------
