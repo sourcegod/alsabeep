@@ -56,21 +56,25 @@ struct TNoteDur {
 struct TPattern g_arrPattern[PAT_LEN];
 struct TNoteDur g_arrNoteDur[PAT_LEN];
 
+// pointer for current pattern
+struct TPattern* g_ptrPat = NULL;
+
 //-----------------------------------------
 
 #define HELP_TEXT "AlsaBeep Usage:\n\
-  freq dur : without options, play at frequency freq, in duration dur in seconds.\n\
-  -d dur : set duration in seconds (default: 1 sec)\n\
-  -f freq : set frequency in HZ, and play it. (default: 440 HZ)\n\
-  -F freq : set frequency in HZ, and play the sequence freq between start and stop optionss\n\
-  -h : print this Help\n\
-  -l loop : set the loop number. (default: 1, [0..32767])\n\
-  -n note : set the note number and play it. (default: 48, [-1..87])\n\
-  -N note : set note number and play the notes sequence between start and stop options\n\
-  -o note : set the note string and play it. (default: \"48\")\n\
-  -s start : set start frequency or note for sequence (default: 0)\n\
-  -S stop : set stop frequency or note for sequence (default: 1)\n\
-  -t step : set step frequency or note for sequence (default: 1)\n\n"
+    freq dur : without options, play at frequency freq, in duration dur in seconds.\n\
+    -d dur : set duration in seconds (default: 1 sec)\n\
+    -f freq : set frequency in HZ, and play it. (default: 440 HZ)\n\
+    -F freq : set frequency in HZ, and play the sequence freq between start and stop optionss\n\
+    -h : print this Help\n\
+    -l loop : set the loop number. (default: 1, [0..32767])\n\
+    -n note : set the note number and play it. (default: 48, [-1..87])\n\
+    -N note : set note number and play the notes sequence between start and stop options\n\
+    -o note : set the note string and play it. (default: \"48\")\n\
+    -r repeat : set the repeat number. (default: 1, [0..32767])\n\
+    -s start : set start frequency or note for sequence (default: 0)\n\
+    -S stop : set stop frequency or note for sequence (default: 1)\n\
+    -t step : set step frequency or note for sequence (default: 1)\n\n"
 //-----------------------------------------
 
 void initArrBuf() {
@@ -340,21 +344,18 @@ void playNoteList(char* strg, float dur) {
     // playing notes from string
     struct TNoteDur* ptrNote = NULL;
     int noteCount = stringToNotes(strg);
-    for (int i=0; i < noteCount; i++) {
-      ptrNote = &g_arrNoteDur[i];
-        printf("Note %d:%.2f, ", ptrNote->note, ptrNote->dur);
-        playNote(ptrNote->note, ptrNote->dur);
-    }
-
-    /*
-    int noteCount = stringToIntArray(strg);
-    for (int i=0; i < noteCount; i++) {
-        printf("%d: ", g_arrNotes[i]);
-        playNote(g_arrNotes[i], dur);
-    }
-    */
-
+    int repeat =0;
+    if (g_ptrPat != NULL) repeat = g_ptrPat->repeat;
     
+    for (int i=0; i < repeat; i++) {
+        for (int j=0; j < noteCount; j++) {
+            ptrNote = &g_arrNoteDur[j];
+            printf("Note %d:%.2f, ", ptrNote->note, ptrNote->dur);
+            playNote(ptrNote->note, ptrNote->dur);
+        }
+    }
+
+   
 }
 //-----------------------------------------
 
@@ -379,51 +380,51 @@ void playBPM(int bpm, int repeat) {
 
 int playPatterns(unsigned int count, unsigned int loops) {
     // run all paterns
-    struct TPattern* ptrPat = NULL;
     char* noteString = NULL;
     
     if (loops == 0) loops = 32767; // infinite loop
     if (count > PAT_LEN) count = PAT_LEN;
     for (int j=0; j < loops; j++) {
         for (int i=0; i < count; i++) {
-            ptrPat = &g_arrPattern[i];
-            if (ptrPat->mode == 0) { // play frequency
-                printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", ptrPat->freq, ptrPat->dur);
+            g_ptrPat = &g_arrPattern[i];
+
+            if (g_ptrPat->mode == 0) { // play frequency
+                printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", g_ptrPat->freq, g_ptrPat->dur);
                 // playFreq(freq, dur);
-                playFreq(ptrPat->freq, ptrPat->dur);
+                playFreq(g_ptrPat->freq, g_ptrPat->dur);
             
-            } else if (ptrPat->mode == 1) { // -f: play frequency
-                printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", ptrPat->freq, ptrPat->dur);
-                playFreq(ptrPat->freq, ptrPat->dur);
+            } else if (g_ptrPat->mode == 1) { // -f: play frequency
+                printf("Playing Freq, Sine tone at %.3fHz during %.3f sec.\n", g_ptrPat->freq, g_ptrPat->dur);
+                playFreq(g_ptrPat->freq, g_ptrPat->dur);
 
-            } else if (ptrPat->mode == 2) { // -F: play sequence freq
-                printf("Playing SeqFreq, Sine tone at %.3fHz, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", ptrPat->freq, ptrPat->dur, ptrPat->start, ptrPat->stop, ptrPat->step);
-                playSeq(ptrPat->freq, ptrPat->dur, ptrPat->start, ptrPat->stop, ptrPat->step);
+            } else if (g_ptrPat->mode == 2) { // -F: play sequence freq
+                printf("Playing SeqFreq, Sine tone at %.3fHz, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", g_ptrPat->freq, g_ptrPat->dur, g_ptrPat->start, g_ptrPat->stop, g_ptrPat->step);
+                playSeq(g_ptrPat->freq, g_ptrPat->dur, g_ptrPat->start, g_ptrPat->stop, g_ptrPat->step);
 
-            } else if (ptrPat->mode == 3) { // -m: play metronome
-                printf("Playing Metronome at %d BPM, repeat: %d.\n", ptrPat->bpm, ptrPat->repeat);
-                playBPM(ptrPat->bpm, ptrPat->repeat);
+            } else if (g_ptrPat->mode == 3) { // -m: play metronome
+                printf("Playing Metronome at %d BPM, repeat: %d.\n", g_ptrPat->bpm, g_ptrPat->repeat);
+                playBPM(g_ptrPat->bpm, g_ptrPat->repeat);
             
-            } else if (ptrPat->mode == 4) { // -n: play note
-                printf("Playing Note at %d, during %.3f secs.\n", ptrPat->note, ptrPat->dur);
-                playNote(ptrPat->note, ptrPat->dur);
+            } else if (g_ptrPat->mode == 4) { // -n: play note
+                printf("Playing Note at %d, during %.3f secs.\n", g_ptrPat->note, g_ptrPat->dur);
+                playNote(g_ptrPat->note, g_ptrPat->dur);
 
-            } else if (ptrPat->mode == 5) { // -N: play sequence note
-                printf("Playing sequence Note at note: %d, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", ptrPat->note, ptrPat->dur, 
-                    ptrPat->start, ptrPat->stop, ptrPat->step);
-                playSeqNote(ptrPat->note, ptrPat->dur, 
-                    ptrPat->start, ptrPat->stop, ptrPat->step);
+            } else if (g_ptrPat->mode == 5) { // -N: play sequence note
+                printf("Playing sequence Note at note: %d, during %.3f secs, start: %d, stop: %d, step: %.3f.\n", g_ptrPat->note, g_ptrPat->dur, 
+                    g_ptrPat->start, g_ptrPat->stop, g_ptrPat->step);
+                playSeqNote(g_ptrPat->note, g_ptrPat->dur, 
+                    g_ptrPat->start, g_ptrPat->stop, g_ptrPat->step);
 
-            } else if (ptrPat->mode == 6) { // -o: play note list
+            } else if (g_ptrPat->mode == 6) { // -o: play note list
                 // TODO: make a better string checking
-                if (noteString == NULL) noteString = strdup(ptrPat->noteString);
+                if (noteString == NULL) noteString = strdup(g_ptrPat->noteString);
                 if (noteString == NULL || noteString[0] == '\0' 
                     || noteString[0] == ' ' || noteString[0] == ',') {
                     fprintf(stderr, "AlsaBeep: Invalid notes list.\n");
                     return EXIT_FAILURE;
                 }
-                printf("Playing Note list: %s, during %.3f secs.\n", ptrPat->noteString, ptrPat->dur);
-                playNoteList(noteString, ptrPat->dur);
+                printf("Playing Note list: %s, during %.3f secs, repeat: %d times.\n", g_ptrPat->noteString, g_ptrPat->dur, g_ptrPat->repeat);
+                playNoteList(noteString, g_ptrPat->dur);
                 free(noteString);
                 noteString = NULL;
             }
@@ -506,6 +507,7 @@ int main(int argc, char *argv[]) {
                 ptrPat->mode = mode;
                 noteString = optarg;
                 ptrPat->noteString = noteString;
+                ptrPat->repeat =1;
                 break;
         case 'r':
                 repeat = strtol(optarg, NULL, 10); 
