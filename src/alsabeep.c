@@ -68,6 +68,7 @@ struct TPattern* g_ptrPat = NULL;
     -F freq : set frequency in HZ, and play the sequence freq between start and stop optionss\n\
     -h : print this Help\n\
     -l loop : set the loop number. (default: 1, [0..32767])\n\
+    -m BPM : set the metronome's BPM. (default: 100, [60..1200)\n\
     -n note : set the note number and play it. (default: 48, [-1..87])\n\
     -N note : set note number and play the notes sequence between start and stop options\n\
     -o note : set the note string and play it. (default: \"48\")\n\
@@ -360,6 +361,7 @@ void playNoteList(char* strg, float dur) {
 //-----------------------------------------
 
 void playBPM(int bpm, int repeat) {
+    bpm = bpm < 60 ? 60 : bpm > 1200 ? 1200 : bpm;
     int dur = 60000 / bpm; // in millisecs
     float* buf1 = g_arrBeat1;
     float* buf2 = g_arrBeat2;

@@ -42,6 +42,14 @@ Play note number 48 (A4), with duration 3 seconds.
 Play sequence notes from 51 note number, with duration 0.5 seconds, starting at
 51 note number (C5), stopping at 63 note number (C6),  by step 1 note.
 
+`./alsabeep -o "51:0.1, 53, 55, 56:0.5, 58" -r 3`
+Repeat 3 times Play Note String with notes numbers:
+51 with duration 0.1 secs, 53 with previous duration, 55, 58 with duration 0.5
+secs, 58 with previous duration.
+
+`./alsabeep -m 120`
+Play the metronome at 120 BPM.
+
 
 ### See also:
 [alsatonic](https://github.com/sourcegod/alsatonic.git "AlsaTonic Project")
